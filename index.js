@@ -7,24 +7,31 @@ const puppeteer = require('puppeteer')
 
 const pkg = require('./package.json')
 
-const error = (message) => {
+const error = message => {
   console.log(chalk.red(`\n${message}\n`))
   process.exit(1)
 }
 
+const checkConfigFile = file => {
+  if (!fs.existsSync(file)) {
+    error(`Configuration file "${file}" doesn't exist`)
+  }
+}
+
 commander
   .version(pkg.version)
-  .option('-t, --theme [name]', 'Theme of the chart, could be default, forest, dark or neutral. Optional. Default: default', /^default|forest|dark|neutral$/, 'default')
+  .option('-t, --theme [theme]', 'Theme of the chart, could be default, forest, dark or neutral. Optional. Default: default', /^default|forest|dark|neutral$/, 'default')
   .option('-w, --width [width]', 'Width of the page. Optional. Default: 800', /^\d+$/, '800')
   .option('-H, --height [height]', 'Height of the page. Optional. Default: 600', /^\d+$/, '600')
   .option('-i, --input <input>', 'Input mermaid file. Required.')
   .option('-o, --output [output]', 'Output file. It should be either svg, png or pdf. Optional. Default: input + ".svg"')
   .option('-b, --backgroundColor [backgroundColor]', 'Background color. Example: transparent, red, \'#F0F0F0\'. Optional. Default: white')
-  .option('-c, --configFile [config]', 'JSON configuration file for mermaid. Optional')
-  .option('-C, --cssFile [cssFile]', 'CSS alternate file for mermaid. Optional')
+  .option('-c, --configFile [configFile]', 'JSON configuration file for mermaid. Optional')
+  .option('-C, --cssFile [cssFile]', 'CSS file for the page. Optional')
+  .option('-p --puppeteerConfigFile [puppeteerConfigFile]', 'JSON configuration file for puppeteer. Optional')
   .parse(process.argv)
 
-let { theme, width, height, input, output, backgroundColor, configFile, cssFile } = commander
+let { theme, width, height, input, output, backgroundColor, configFile, cssFile, puppeteerConfigFile } = commander
 
 // check input file
 if (!input) {
@@ -46,77 +53,58 @@ if (!fs.existsSync(outputDir)) {
   error(`Output directory "${outputDir}/" doesn't exist`)
 }
 
+// check config files
+let mermaidConfig = { theme }
 if (configFile) {
-  if (!fs.existsSync(configFile)) {
-    error(`Configuration file "${configFile}" doesn't exist`)
-  } else if (!/\.(?:json)$/.test(configFile)) {
-    error(`Config file must end with ".json"`)
-  }
+  checkConfigFile(configFile)
+  mermaidConfig = Object.assign(mermaidConfig, JSON.parse(fs.readFileSync(configFile, 'utf-8')))
+}
+let puppeteerConfig = {}
+if (puppeteerConfigFile) {
+  checkConfigFile(puppeteerConfigFile)
+  puppeteerConfig = JSON.parse(fs.readFileSync(puppeteerConfigFile, 'utf-8'))
 }
 
+// check cssFile
+let myCSS
 if (cssFile) {
   if (!fs.existsSync(cssFile)) {
     error(`CSS file "${cssFile}" doesn't exist`)
-  } else if (!/\.(?:css)$/.test(cssFile)) {
-    error(`CSS file must end with ".css"`)
   }
+  myCSS = fs.readFileSync(cssFile, 'utf-8')
 }
 
 // normalize args
 width = parseInt(width)
 height = parseInt(height)
-backgroundColor = backgroundColor || 'white'
+backgroundColor = backgroundColor || 'white';
 
-;(async () => {
-  const browser = await puppeteer.launch({
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox'
-        ]
-    });
+(async () => {
+  const browser = await puppeteer.launch(puppeteerConfig)
   const page = await browser.newPage()
   page.setViewport({ width, height })
   await page.goto(`file://${path.join(__dirname, 'index.html')}`)
-
   await page.evaluate(`document.body.style.background = '${backgroundColor}'`)
-
   const definition = fs.readFileSync(input, 'utf-8')
 
-  var myconfig, myCSS
-  
-  if (configFile) {
-    myconfig = JSON.parse(fs.readFileSync(configFile, 'utf-8'))
-  }
-
-  if (cssFile) {
-    myCSS = fs.readFileSync(cssFile, 'utf-8')
-  }
-
-  await page.$eval('#container', (container, definition, theme, myconfig, myCSS) => {
+  await page.$eval('#container', (container, definition, mermaidConfig, myCSS) => {
     container.innerHTML = definition
-    window.mermaid_config = { theme }
-
-    if (myconfig) {
-    // See https://github.com/knsv/mermaid/blob/master/src/mermaidAPI.js
-      window.mermaid.initialize(myconfig)
-    }
+    window.mermaid.initialize(mermaidConfig)
 
     if (myCSS) {
-      var head = window.document.head || window.document.getElementsByTagName('head')[0],
-        style = document.createElement('style');
-
-      style.type = 'text/css';
+      const head = window.document.head || window.document.getElementsByTagName('head')[0]
+      const style = document.createElement('style')
+      style.type = 'text/css'
       if (style.styleSheet) {
-        style.styleSheet.cssText = myCSS;
+        style.styleSheet.cssText = myCSS
       } else {
-        style.appendChild(document.createTextNode(myCSS));
+        style.appendChild(document.createTextNode(myCSS))
       }
-
-      head.appendChild(style);
+      head.appendChild(style)
     }
 
     window.mermaid.init(undefined, container)
-  }, definition, theme, myconfig, myCSS)
+  }, definition, mermaidConfig, myCSS)
 
   if (output.endsWith('svg')) {
     const svg = await page.$eval('#container', container => container.innerHTML)

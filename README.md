@@ -2,10 +2,29 @@
 
 Command-line interface for [mermaid](https://mermaidjs.github.io/).
 
-This CLI tool takes a mermaid definition file as input and generates svg/png file as output.
+This CLI tool takes a mermaid definition file as input and generates svg/png/pdf file as output.
 
 
-## Installation
+## Install locally
+
+Some people are [having issue](https://github.com/mermaidjs/mermaid.cli/issues/15) installing this tool globally. Installing it locally is an alternative solution:
+
+```
+yarn add mermaid.cli
+./node_modules/.bin/mmdc -h
+```
+
+Or use NPM:
+
+```
+npm install mermaid.cli
+./node_modules/.bin/mmdc -h
+```
+
+
+## Install globally
+
+❗️ We do **NOT** recommend installing it globally because both YARN and NPM could fail to install a command line tool globally properly due to weird permission issues.
 
 ```
 yarn global add mermaid.cli
@@ -16,8 +35,6 @@ yarn global add mermaid.cli
 ```
 npm install -g mermaid.cli
 ```
-
-Please install via `npm` instead of `yarn` if you encounter [this issue](https://github.com/yarnpkg/yarn/issues/2224).
 
 
 ## Examples
@@ -67,14 +84,59 @@ Usage: mmdc [options]
 
   Options:
 
-    -V, --version                            output the version number
-    -t, --theme [name]                       Theme of the chart, could be default, forest, dark or neutral. Optional. Default: default
-    -w, --width [width]                      Width of the page. Optional. Default: 800
-    -H, --height [height]                    Height of the page. Optional. Default: 600
-    -i, --input <input>                      Input mermaid file. Required.
-    -o, --output [output]                    Output file. It should be either svg, png or pdf. Optional. Default: input + ".svg"
-    -b, --backgroundColor [backgroundColor]  Background color. Example: transparent, red, '#F0F0F0'. Optional. Default: white
-    -c, --configFile [config]                JSON configuration file for mermaid. Optional
-    -C, --cssFile [cssFile]                  CSS alternate file for mermaid. Optional
-    -h, --help                               output usage information
+    -V, --version                                   output the version number
+    -t, --theme [theme]                             Theme of the chart, could be default, forest, dark or neutral. Optional. Default: default (default: default)
+    -w, --width [width]                             Width of the page. Optional. Default: 800 (default: 800)
+    -H, --height [height]                           Height of the page. Optional. Default: 600 (default: 600)
+    -i, --input <input>                             Input mermaid file. Required.
+    -o, --output [output]                           Output file. It should be either svg, png or pdf. Optional. Default: input + ".svg"
+    -b, --backgroundColor [backgroundColor]         Background color. Example: transparent, red, '#F0F0F0'. Optional. Default: white
+    -c, --configFile [configFile]                   JSON configuration file for mermaid. Optional
+    -C, --cssFile [cssFile]                         CSS file for the page. Optional
+    -p --puppeteerConfigFile [puppeteerConfigFile]  JSON configuration file for puppeteer. Optional
+    -h, --help                                      output usage information
 ```
+
+
+## Linux sandbox issue
+
+```
+node:8281) UnhandledPromiseRejectionWarning: Error: Failed to launch chrome!
+[0416/092218.828861:ERROR:zygote_host_impl_linux.cc(88)] Running as root without --no-sandbox is not supported. See https://crbug.com/638180.
+```
+
+```
+(node:8191) UnhandledPromiseRejectionWarning: Error: Failed to launch chrome!
+[0416/091938.210735:FATAL:zygote_host_impl_linux.cc(124)] No usable sandbox! Update your kernel or see https://chromium.googlesource.com/chromium/src/+/master/docs/linux_suid_sandbox_development.md for more information on developing with the SUID sandbox. If you want to live dangerously and need an immediate workaround, you can try using --no-sandbox.
+```
+
+First and foremost, you should not run as root and you should upgrade your Linux kernel to latest version.
+
+But if you don't want to follow the advice above and just want to disable sandbox, here you go:
+
+Create a `puppeteer-config.json` file:
+
+```json
+{
+  "args": ["--no-sandbox"]
+}
+```
+
+And when you invoke `mmdc`:
+
+```
+mmdc -p puppeteer-config.json ...
+```
+
+
+## For contributors
+
+### Setup
+
+    yarn install
+    source copy_modules.sh
+
+
+### Test
+
+Use the fixtures in `test/` to do manual testing after you change something.
